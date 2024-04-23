@@ -1,48 +1,43 @@
+using Contracts;
 using FastEndpoints;
+using FastEndpoints.Security;
 using FastEndpoints.Swagger;
+using LoggerService;
+using NLog;
+using PoCStarterTemplate;
+using PoCStarterTemplate.Extensions;
 
-var bld = WebApplication.CreateBuilder();
-bld.Services
-    .AddFastEndpoints()
-    .SwaggerDocument();
+var builder = WebApplication.CreateBuilder();
+var secSettings = builder.Configuration.GetSection(nameof(Settings));
+var settingsData = secSettings.Get<Settings>()!;
 
-var app = bld.Build();
-app.UseFastEndpoints()
-    .UseSwaggerGen();
+LogManager.Setup().LoadConfigurationFromFile(Path.Combine(Directory.GetCurrentDirectory(), "nlog.config"));
+builder.Services.Configure<Settings>(secSettings);
+builder.Services.ConfigureLoggerService();
+builder.Services.ConfigureRepositoryManager();
+builder.Services.ConfigureSqliteContext(builder.Configuration);
+builder.Services.AddFastEndpoints();
+builder.Services.AddJWTBearerAuth(settingsData.Auth.SigningKey);
+builder.Services.AddAuthorization();
+
+if (!builder.Environment.IsProduction())
+{
+    builder.Services.AddCors();
+    builder.Services.SwaggerDocument();
+}
+
+
+var app = builder.Build();
+app.UseAuthentication()
+    .UseAuthorization()
+    .UseFastEndpoints(c => c.Serializer.Options.PropertyNamingPolicy = null);
+
+if (!builder.Environment.IsProduction())
+{
+    app.UseSwaggerGen();
+}
+
 app.Run();
 
+public partial class Program { };
 
-public class HelloRequest
-{
-    public string FirstName { get; set; }
-    public string LastName { get; set; }
-}
-
-#region "check server OK"
-public class HelloResponse
-{
-    public string HelloMessage { get; set; }
-    public string FullName { get; set; }
-}
-
-
-public class HelloEndpoint : Endpoint<HelloRequest, HelloResponse>
-{
-    public override void Configure()
-    {
-        Post("/api/hello");
-        AllowAnonymous();
-    }
-
-    public override async Task HandleAsync(HelloRequest req, CancellationToken ct)
-    {
-        HelloResponse resResult = new HelloResponse()
-        {
-            FullName = $"{req.FirstName} {req.LastName}"
-        };
-        resResult.HelloMessage = $"Hello {resResult.FullName}";
-        
-        await SendAsync(resResult);
-    }
-}
-#endregion
