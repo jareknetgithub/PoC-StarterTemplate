@@ -1,0 +1,6 @@
+@PoCStarterTemplate.Server_HostAddress = http://localhost:5229
+
+GET {{PoCStarterTemplate.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
